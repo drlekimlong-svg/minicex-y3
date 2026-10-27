@@ -1,0 +1,4 @@
+# Chỉ đưa lên bản dữ liệu đã mã hóa; không bao giờ đưa dữ liệu rõ hoặc mật khẩu.
+*.plain.json
+_MAT/
+mat_khau*
