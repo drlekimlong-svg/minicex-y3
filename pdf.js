@@ -71,7 +71,7 @@ function dinhNghiaPdf(r) {
       [...o('Lớp', r.sv.lop), ...o('Tổ', r.sv.to)],
       [...o('Đợt lâm sàng', r.sv.dot), ...o('Năm học', r.sv.nam_hoc)],
       [...o('Khoa thực tập', r.sv.khoa), ...o('Ngày chấm', ngayVN(r.ngay))],
-      [...o(`Mini-CEX ${L.ten_ngan.toLowerCase()}`, tenLuot(r.luot)), ...o('Địa điểm', r.dia_diem)],
+      [...o(`Mini-CEX ${thuong(L.ten_ngan)}`, tenLuot(r.luot)), ...o('Địa điểm', r.dia_diem)],
       [...o('Giảng viên chấm', r.gv), ...o(L.doi_tuong.nhan, dongVai)],
       ...(r.nguoi_benh ? [[{text: 'Người bệnh', color: XAM, fontSize: 8.8}, {text: r.nguoi_benh, bold: true, colSpan: 3}, {}, {}]] : []),
     ]}, layout: LUOI},
@@ -155,12 +155,12 @@ function dinhNghiaPdf(r) {
 
   return {
     pageSize: 'A4', pageMargins: [40, 36, 40, 44],
-    info: {title: `Phiếu chấm Mini-CEX ${L.ten_ngan.toLowerCase()} ${th.ma} – ${r.sv.ho_ten}`, author: r.gv, subject: L.ten,
+    info: {title: `Phiếu chấm Mini-CEX ${thuong(L.ten_ngan)} ${th.ma} – ${r.sv.ho_ten}`, author: r.gv, subject: L.ten,
            creator: 'Webapp chấm Mini-CEX Y3'},
     defaultStyle: {font: 'Roboto', fontSize: 9.4, lineHeight: 1.15},
     styles: {muc: {fontSize: 10.5, bold: true, color: XANH, margin: [0, 9, 0, 3]}},
     footer: (trang, so) => ({columns: [
-      {text: `Mini-CEX ${L.ten_ngan.toLowerCase()} Y3 · mã phiếu ${r.id} · dữ liệu ${GOI.phien_ban} · xuất lúc ${xuat}`},
+      {text: `Mini-CEX ${thuong(L.ten_ngan)} Y3 · mã phiếu ${r.id} · dữ liệu ${GOI.phien_ban} · xuất lúc ${xuat}`},
       {text: `Trang ${trang}/${so}`, alignment: 'right', width: 60},
     ], margin: [40, 14, 40, 0], fontSize: 7.5, color: XAM}),
     content: noiDung,

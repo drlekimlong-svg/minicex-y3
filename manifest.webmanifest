@@ -1,7 +1,7 @@
 {
   "name": "Chấm Mini-CEX Y3",
   "short_name": "Mini-CEX Y3",
-  "description": "Chấm Mini-CEX tư vấn, hỏi bệnh sử, khám thực thể – thực tập Ngoại khoa Y3",
+  "description": "Chấm Mini-CEX tư vấn, hỏi bệnh sử, khám thực thể, hậu phẫu – ISBAR – thực tập Ngoại khoa Y3",
   "lang": "vi",
   "start_url": "./",
   "scope": "./",

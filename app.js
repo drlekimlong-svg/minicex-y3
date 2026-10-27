@@ -32,6 +32,8 @@ const khongDau = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/
 const chuanTim = s => khongDau(s).toLowerCase().trim();
 const chuanMSSV = s => String(s ?? '').trim().toUpperCase();
 const tenLuot = l => l === 'bs' ? 'Lượt bổ sung' : l ? `Lượt ${l}` : '';
+// Viết thường để ghép vào câu, giữ nguyên từ viết tắt (ISBAR, ABCDE).
+const thuong = s => s.split(' ').map(w => (w.length > 1 && w === w.toUpperCase() && /[A-ZĐ]/.test(w) ? w : w.toLowerCase())).join(' ');
 const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 const b64e = u => btoa(String.fromCharCode(...u));
 const docJSON = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
@@ -583,7 +585,7 @@ function veB2() {
       ${o('sv.nam_hoc', 'Năm học', R.sv.nam_hoc, {list: 'ds-nam', ph: namHocMacDinh()})}
       ${o('sv.khoa', 'Khoa thực tập', R.sv.khoa, {list: 'ds-khoa'})}
       ${o('ngay', 'Ngày chấm', R.ngay, {type: 'date'})}</div></section>
-    <section class="the"><h3>Lượt Mini-CEX ${esc(LO(R).ten_ngan.toLowerCase())} <i style="color:var(--m0);font-style:normal">*</i></h3>
+    <section class="the"><h3>Lượt Mini-CEX ${esc(thuong(LO(R).ten_ngan))} <i style="color:var(--m0);font-style:normal">*</i></h3>
       <div class="phan-doan" style="margin-top:10px">${LUOT.map(l => `<button data-act="luot" data-v="${l}" aria-pressed="${R.luot === l}">${l === 'bs' ? 'Bổ sung' : 'Lượt ' + l}</button>`).join('')}</div>
       <p class="goi-y" id="goi-y-luot">${goiYLuot()}</p></section>
     <section class="the"><h3>Giảng viên và ${esc(dt.nhan.toLowerCase())}</h3><div class="luoi-form" style="margin-top:10px">
@@ -614,9 +616,9 @@ function veLichSuSV() {
 function goiYLuot() {
   const ls = lichSuSV(R.sv.mssv, R).filter(x => x.trang_thai === 'xong' && LO(x) === LO(R));
   if (!R.sv.mssv.trim()) return 'Nhập MSSV để app gợi ý lượt.';
-  if (!ls.length) return `Chưa có lượt ${LO(R).ten_ngan.toLowerCase()} nào của sinh viên này trên máy: thường là lượt 1.`;
+  if (!ls.length) return `Chưa có lượt ${thuong(LO(R).ten_ngan)} nào của sinh viên này trên máy: thường là lượt 1.`;
   const can = ls.filter(x => coLoi(x) || nhanDinh(x) === 0);
-  return `Đã hoàn tất ${ls.length} lượt ${LO(R).ten_ngan.toLowerCase()}: gợi ý lượt ${Math.min(ls.length + 1, 4)}.` +
+  return `Đã hoàn tất ${ls.length} lượt ${thuong(LO(R).ten_ngan)}: gợi ý lượt ${Math.min(ls.length + 1, 4)}.` +
     (can.length ? ` Có ${can.length} lượt chưa đạt hoặc có lỗi nghiêm trọng: có thể là lượt bổ sung.` : '');
 }
 
@@ -671,7 +673,7 @@ function veLV(i) {
   const goiY = i === q.lv_then_chot ? goiYNoiDung(R) : null, loi = loiCuaLV(R, i);
   let ghi = '';
   if (i === q.lv_trinh_bay) {
-    ghi += `<details class="tham-chieu"><summary>Trình bày mong đợi (giảng viên đối chiếu)</summary>${veDapAn(TH[R.ma_th])}</details>`;
+    ghi += `<details class="tham-chieu"><summary>Đáp án để đối chiếu (chỉ giảng viên xem)</summary>${veDapAn(TH[R.ma_th])}</details>`;
   }
   if (i === q.lv_then_chot) {
     const c = soTCChua(R);
@@ -732,7 +734,7 @@ function goiYPhanHoi(k) {
       .sort((x, y) => x[1] - y[1]).slice(0, 2);
     for (const [i] of thap) {
       const lv = LO(R).linh_vuc[i];
-      a.push([`Lĩnh vực ${i + 1}: ${lv.ten_ngan.toLowerCase()}`, `${lv.ten_ngan}: ${lv.muc[2].mo_ta}`]);
+      a.push([`Lĩnh vực ${i + 1}: ${thuong(lv.ten_ngan)}`, `${lv.ten_ngan}: ${lv.muc[2].mo_ta}`]);
     }
   }
   return a.length ? `<div class="chips">${a.map(([nhan, gt]) => `<button class="chip chen" data-act="chen_ph" data-k="${k}" data-v="${esc(gt)}">+ ${esc(nhan.length > 70 ? nhan.slice(0, 68) + '…' : nhan)}</button>`).join('')}</div>` : '';
@@ -1116,7 +1118,7 @@ const HD = {
     const th = TH[R.ma_th];
     try {
       await navigator.share({files: [UI.pdf.tep], title: UI.pdf.ten,
-                             text: `Phiếu Mini-CEX ${LO(R).ten_ngan.toLowerCase()} ${th.ma} – ${R.sv.ho_ten} (${tenLuot(R.luot).toLowerCase()}, ${ngayVN(R.ngay)})`});
+                             text: `Phiếu Mini-CEX ${thuong(LO(R).ten_ngan)} ${th.ma} – ${R.sv.ho_ten} (${tenLuot(R.luot).toLowerCase()}, ${ngayVN(R.ngay)})`});
     } catch (e) { if (e.name !== 'AbortError') bao('Không chia sẻ được; hãy tải PDF rồi gửi.', true); }
   },
   pdf_xem: () => {
