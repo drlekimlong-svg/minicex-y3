@@ -528,7 +528,7 @@ function veThamKhao(th, tab, act) {
     nd = `${L.canh_bao_vai ? `<p class="bao-mat">${esc(L.canh_bao_vai)}</p>` : ''}<dl class="kb">${th.kich_ban.map(m =>
       `<dt>${esc(m.n)}</dt><dd${m.t ? ' class="loi-thoai"' : ''}>${veDS(m.nd)}</dd>`).join('')}</dl>`;
   } else if (tab === 'day') {
-    nd = `${th.dap_an.length ? '<h4>Trình bày mong đợi</h4>' + veDapAn(th) : ''}<h4>Điểm dạy</h4>${veDS(th.diem_day)}
+    nd = `${th.dap_an.length ? '<h4>Đáp án để đối chiếu</h4>' + veDapAn(th) : ''}<h4>Điểm dạy</h4>${veDS(th.diem_day)}
       <h4>Tài liệu</h4><ol>${th.tai_lieu.map(x => `<li><small>${esc(x)}</small></li>`).join('')}</ol>
       <p class="nhat">${esc(th.lien_he)} · ${esc(th.clo)}</p>`;
   } else nd = veNhiemVu(th);
@@ -585,7 +585,7 @@ function veB2() {
       ${o('sv.nam_hoc', 'Năm học', R.sv.nam_hoc, {list: 'ds-nam', ph: namHocMacDinh()})}
       ${o('sv.khoa', 'Khoa thực tập', R.sv.khoa, {list: 'ds-khoa'})}
       ${o('ngay', 'Ngày chấm', R.ngay, {type: 'date'})}</div></section>
-    <section class="the"><h3>Lượt Mini-CEX ${esc(thuong(LO(R).ten_ngan))} <i style="color:var(--m0);font-style:normal">*</i></h3>
+    <section class="the"><h3>Lượt ${esc(LO(R).ten_lan)} <i style="color:var(--m0);font-style:normal">*</i></h3>
       <div class="phan-doan" style="margin-top:10px">${LUOT.map(l => `<button data-act="luot" data-v="${l}" aria-pressed="${R.luot === l}">${l === 'bs' ? 'Bổ sung' : 'Lượt ' + l}</button>`).join('')}</div>
       <p class="goi-y" id="goi-y-luot">${goiYLuot()}</p></section>
     <section class="the"><h3>Giảng viên và ${esc(dt.nhan.toLowerCase())}</h3><div class="luoi-form" style="margin-top:10px">
@@ -625,11 +625,12 @@ function goiYLuot() {
 // Bước 3: quan sát
 function phaDH(ms) {
   const q = LO(R).quy_tac, p = ms / 60000;
+  if (q.phut_bao == null) return 0;  // DOPS: không giới hạn giờ
   return p >= q.phut_dung ? 3 : p >= q.phut_muc_tieu ? 2 : p >= q.phut_bao ? 1 : 0;
 }
 function veB3() {
   const th = TH[R.ma_th], L = LO(R), q = L.quy_tac, t = tongTC(R), c = soTCChua(R), n = R.then_chot.length, ms = msDongHo(R);
-  return `<div class="tieu-de-buoc"><h2>Quan sát</h2><p class="phu">Ngồi ngoài tầm nhìn chính, không can thiệp. Đánh dấu điểm then chốt và lỗi nghiêm trọng khi nghe được.</p></div>
+  return `<div class="tieu-de-buoc"><h2>Quan sát</h2><p class="phu">${esc(L.huong_dan_quan_sat || 'Ngồi ngoài tầm nhìn chính, không can thiệp. Đánh dấu điểm then chốt và lỗi nghiêm trọng khi nghe được.')}</p></div>
     <section class="the dong-ho-the">
       <div class="dh-lon pha-${phaDH(ms)}" id="dh-lon" role="timer">${dinhDangGio(ms)}</div>
       <p class="phu" id="dh-pha">${moTaPha(ms)}</p>
@@ -637,7 +638,8 @@ function veB3() {
         : `<button class="nut chinh" data-act="dh_chay">▶ ${ms ? 'Tiếp tục' : 'Bắt đầu ' + L.dong_tu}</button>`}
         <button class="nut vien" data-act="dh_lai" ${ms ? '' : 'disabled'}>Đặt lại</button>
         <button class="nut vien" data-act="doc_sv">Phiếu cho sinh viên đọc (${q.phut_doc} phút)</button></div>
-      <p class="nhat">Mục tiêu ${q.phut_bao}–${q.phut_muc_tieu} phút · phút ${q.phut_bao} báo còn 2 phút · dừng ở phút ${q.phut_dung}. Màn hình được giữ sáng khi đồng hồ chạy.</p>
+      <p class="nhat">${q.phut_bao == null ? 'Đồng hồ chỉ ghi thời gian thực hiện, không giới hạn giờ trên người bệnh.'
+        : `Mục tiêu ${q.phut_bao}–${q.phut_muc_tieu} phút · phút ${q.phut_bao} báo còn 2 phút · dừng ở phút ${q.phut_dung}.`} Màn hình được giữ sáng khi đồng hồ chạy.</p>
     </section>
     <details class="the"><summary>${esc(L.nhan_nhac)}</summary>${veDS(th.nhac)}</details>
     <section class="the"><div class="the-dau"><h3>A. ${esc(L.nhan_then_chot)}</h3><span class="dem">${soTC(t)}/${n}</span></div>
@@ -1118,7 +1120,7 @@ const HD = {
     const th = TH[R.ma_th];
     try {
       await navigator.share({files: [UI.pdf.tep], title: UI.pdf.ten,
-                             text: `Phiếu Mini-CEX ${thuong(LO(R).ten_ngan)} ${th.ma} – ${R.sv.ho_ten} (${tenLuot(R.luot).toLowerCase()}, ${ngayVN(R.ngay)})`});
+                             text: `Phiếu ${LO(R).ten_lan} ${th.ma} – ${R.sv.ho_ten} (${tenLuot(R.luot).toLowerCase()}, ${ngayVN(R.ngay)})`});
     } catch (e) { if (e.name !== 'AbortError') bao('Không chia sẻ được; hãy tải PDF rồi gửi.', true); }
   },
   pdf_xem: () => {
