@@ -1,6 +1,6 @@
 # Chấm Mini-CEX – Y3
 
-Công cụ chấm Mini-CEX (tư vấn người bệnh, hỏi bệnh sử) cho sinh viên Y3 thực tập Ngoại khoa, Tổ bộ môn Ngoại – BV. Nhân dân Gia Định
+Công cụ chấm Mini-CEX (tư vấn người bệnh, hỏi bệnh sử, khám thực thể chuyên biệt) cho sinh viên Y3 thực tập Ngoại khoa, Tổ bộ môn Ngoại – BV. Nhân dân Gia Định
 (Trường Đại học Y khoa Phạm Ngọc Thạch).
 
 Địa chỉ: https://drlekimlong-svg.github.io/minicex-y3/
@@ -8,8 +8,9 @@ Công cụ chấm Mini-CEX (tư vấn người bệnh, hỏi bệnh sử) cho si
 ## Dùng thế nào
 
 1. Nhập mật khẩu (do người phụ trách cung cấp). Trên máy cá nhân có thể chọn "Ghi nhớ trên thiết bị này".
-2. Chọn loại Mini-CEX và tình huống: tư vấn người bệnh (TV01–TV12) hoặc hỏi bệnh sử (HB01–HB12); xem phiếu sinh viên,
-   kịch bản người đóng vai, điểm dạy (hỏi bệnh sử có thêm phần trình bày mong đợi).
+2. Chọn loại Mini-CEX và tình huống: tư vấn người bệnh (TV01–TV12), hỏi bệnh sử (HB01–HB12) hoặc khám thực thể
+   chuyên biệt (KT01–KT06: bụng, bẹn – bìu, thăm trực tràng, vết mổ – dẫn lưu, hệ tiết niệu, mạch chi dưới); xem phiếu
+   sinh viên, kịch bản hoặc hướng dẫn tổ chức, điểm dạy và phần trình bày mong đợi.
 3. Nhập sinh viên, MSSV, lớp, tổ, đợt, năm học, khoa, lượt Mini-CEX, giảng viên, người đóng vai.
 4. Quan sát: đồng hồ (báo ở phút 8, 10, 12), phiếu cho sinh viên đọc (1–2 phút), đánh dấu điểm then chốt, lỗi nghiêm
    trọng, ghi chú nhanh.
@@ -23,7 +24,7 @@ CSV (kèm tổng hợp theo sinh viên), sao lưu JSON và nhập JSON từ máy
 
 ## Dữ liệu
 
-`data.enc.json` là hai bộ tình huống và thang đánh giá đã mã hóa AES-256-GCM, khóa sinh từ mật khẩu bằng
+`data.enc.json` là ba bộ tình huống và thang đánh giá đã mã hóa AES-256-GCM, khóa sinh từ mật khẩu bằng
 PBKDF2-SHA256 (600 000 vòng). Kho này không chứa bản rõ của tình huống hay kịch bản người đóng vai.
 Thư viện tạo PDF: pdfmake 0.2.23 (MIT), font Roboto (Apache 2.0), lưu trong `vendor/`.
 

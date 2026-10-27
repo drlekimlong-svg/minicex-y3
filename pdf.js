@@ -72,7 +72,8 @@ function dinhNghiaPdf(r) {
       [...o('Đợt lâm sàng', r.sv.dot), ...o('Năm học', r.sv.nam_hoc)],
       [...o('Khoa thực tập', r.sv.khoa), ...o('Ngày chấm', ngayVN(r.ngay))],
       [...o(`Mini-CEX ${L.ten_ngan.toLowerCase()}`, tenLuot(r.luot)), ...o('Địa điểm', r.dia_diem)],
-      [...o('Giảng viên chấm', r.gv), ...o('Người đóng vai', dongVai)],
+      [...o('Giảng viên chấm', r.gv), ...o(L.doi_tuong.nhan, dongVai)],
+      ...(r.nguoi_benh ? [[{text: 'Người bệnh', color: XAM, fontSize: 8.8}, {text: r.nguoi_benh, bold: true, colSpan: 3}, {}, {}]] : []),
     ]}, layout: LUOI},
 
     {table: {widths: ['*', '*', '*'], body: [[
