@@ -1,5 +1,6 @@
 'use strict';
-// Chấm Mini-CEX tư vấn người bệnh – thực tập Ngoại khoa Y3 (Tổ bộ môn Ngoại – BV. Nhân dân Gia Định).
+// Chấm Mini-CEX (tư vấn người bệnh, hỏi bệnh sử) – thực tập Ngoại khoa Y3 (Tổ bộ môn Ngoại – BV. Nhân dân Gia Định).
+// Mỗi loại Mini-CEX có thang, quy tắc chấm, mức giám sát riêng (DL.loai); tình huống ghi loại của mình.
 // Dữ liệu tình huống: data.enc.json (AES-256-GCM, khóa sinh từ mật khẩu bằng PBKDF2), dựng bằng _nguon\dung_webapp.py.
 // Bản ghi chấm lưu trong IndexedDB của máy giảng viên; phiếu PDF tạo tại máy (pdf.js).
 
@@ -18,8 +19,8 @@ const PH = [
   ['lan_toi', 'Việc em sẽ làm lần tới', '“Lần tới em sẽ làm gì khác?” – ghi theo lời sinh viên', true],
 ];
 
-let GOI = null, DL = null, TH = {}, BG = [], R = null;
-const UI = {man: 'tai', buoc: 1, loc_nhom: '', xem: null, tab_xem: 'sv', tab_ben: 'sv', tab_chu: 'luot', tim: '',
+let GOI = null, DL = null, TH = {}, BG = [], R = null, LOAI = {};
+const UI = {man: 'tai', buoc: 1, loai_b1: 'tv', loc_loai: '', loc_nhom: '', xem: null, tab_xem: 'sv', tab_ben: 'sv', tab_chu: 'luot', tim: '',
             loc_nam: '', loc_dot: '', mo_muc: {}, pdf: null, da_bao: {}, doc_bat_dau: null};
 
 // ============================================================ tiện ích
@@ -160,7 +161,7 @@ function datTinhHuong(r, ma) {
   r.ma_th = ma;
   r.then_chot = th.then_chot.map(() => null);
   r.loi = th.loi.map(() => false);
-  r.diem = Array(DL.linh_vuc.length).fill(null);
+  r.diem = Array(LOAI[th.loai].linh_vuc.length).fill(null);
   r.nhan_dinh = null;
   r.ly_do_nhan_dinh = '';
   r.giam_sat = null;
@@ -176,7 +177,7 @@ function chuanHoa(r) {
     const khop = (a, n, v) => Array.from({length: n}, (_, i) => a?.[i] ?? v);
     r.then_chot = khop(r.then_chot, th.then_chot.length, null);
     r.loi = khop(r.loi, th.loi.length, false);
-    r.diem = khop(r.diem, DL.linh_vuc.length, null);
+    r.diem = khop(r.diem, LOAI[th.loai].linh_vuc.length, null);
   }
   return r;
 }
@@ -185,13 +186,14 @@ const tongTC = r => r.then_chot.reduce((a, x) => a + (x || 0), 0);
 const soTCChua = r => r.then_chot.filter(x => x == null).length;
 const tong = r => r.diem.reduce((a, x) => a + (x || 0), 0);
 const coLoi = r => r.loi.some(Boolean);
-function mucTheoDiem(i, d) {
+const LO = r => LOAI[TH[r.ma_th].loai];
+function mucTheoDiem(r, i, d) {
   if (d == null) return null;
-  const k = DL.linh_vuc[i].muc.findIndex(m => d >= m.tu && d <= m.den);
+  const k = LO(r).linh_vuc[i].muc.findIndex(m => d >= m.tu && d <= m.den);
   return k < 0 ? null : k;
 }
 function mucNoiDung(r) {
-  const t = tongTC(r), q = DL.quy_tac;
+  const t = tongTC(r), q = LO(r).quy_tac;
   return t >= q.then_chot_tot ? 2 : t >= q.then_chot_dat ? 1 : 0;
 }
 function loiCuaLV(r, i) {
@@ -200,21 +202,22 @@ function loiCuaLV(r, i) {
 }
 function mucChoPhep(r, i) {
   if (loiCuaLV(r, i).length) return [0];
-  if (i === 2) return [mucNoiDung(r)];
+  if (i === LO(r).quy_tac.lv_then_chot) return [mucNoiDung(r)];
   return [0, 1, 2];
 }
-// Lĩnh vực 3: gợi ý điểm nội suy trong khoảng của mức, theo tổng điểm then chốt.
+// Lĩnh vực chấm theo điểm then chốt: gợi ý điểm nội suy trong khoảng của mức, theo tổng điểm then chốt.
 function goiYNoiDung(r) {
-  if (loiCuaLV(r, 2).length) return null;
-  const q = DL.quy_tac, n = r.then_chot.length, t = tongTC(r), m = mucNoiDung(r), muc = DL.linh_vuc[2].muc[m];
+  const q = LO(r).quy_tac, L = q.lv_then_chot;
+  if (loiCuaLV(r, L).length) return null;
+  const n = r.then_chot.length, t = tongTC(r), m = mucNoiDung(r), muc = LO(r).linh_vuc[L].muc[m];
   const [lo, hi] = m === 2 ? [q.then_chot_tot, n] : m === 1 ? [q.then_chot_dat, q.then_chot_tot - 0.5] : [0, q.then_chot_dat - 0.5];
   return Math.round(muc.tu + (Math.min(Math.max(t, lo), hi) - lo) / (hi - lo || 1) * (muc.den - muc.tu));
 }
-const diemHopLe = (r, i) => r.diem[i] != null && mucChoPhep(r, i).includes(mucTheoDiem(i, r.diem[i]));
+const diemHopLe = (r, i) => r.diem[i] != null && mucChoPhep(r, i).includes(mucTheoDiem(r, i, r.diem[i]));
 const duDiem = r => r.diem.every((_, i) => diemHopLe(r, i));
 function nhanDinhGoiY(r) {
   if (coLoi(r)) return 0;
-  const t = tong(r), q = DL.quy_tac;
+  const t = tong(r), q = LO(r).quy_tac;
   return t < q.nhan_dinh_dat ? 0 : t < q.nhan_dinh_tot ? 1 : 2;
 }
 function nhanDinh(r) {
@@ -310,6 +313,7 @@ async function dangNhap(form) {
 async function vaoApp(dl) {
   DL = dl;
   TH = Object.fromEntries(dl.tinh_huong.map(t => [t.ma, t]));
+  LOAI = Object.fromEntries(dl.loai.map(l => [l.ma, l]));
   await KHO.mo();
   if (!KHO.db) bao('Trình duyệt không cho lưu dữ liệu: bản ghi sẽ mất khi đóng trang. Hãy xuất PDF sau mỗi lượt.', true);
   BG = (await KHO.tatCa().catch(() => [])).filter(r => TH[r.ma_th]).map(chuanHoa);
@@ -344,6 +348,7 @@ window.addEventListener('popstate', e => {
 });
 function moBanGhi(r) {
   R = r;
+  if (r.ma_th) UI.loai_b1 = TH[r.ma_th].loai;
   UI.pdf = null;
   UI.xem = null;
   const b = r.trang_thai === 'xong' ? 5 : (thieu(r)[0]?.[0] ?? 5);
@@ -354,6 +359,7 @@ function batDauMoi(mau) {
   UI.pdf = null;
   UI.xem = null;
   if (mau?.ma_th) {
+    UI.loai_b1 = TH[mau.ma_th].loai;
     datTinhHuong(R, mau.ma_th);
     R.dong_vai = {...mau.dong_vai};
     daSua();
@@ -374,7 +380,7 @@ function ve() {
 function veDangNhap() {
   return `<main class="dang-nhap"><div class="the dn-the">
     <img src="icon.svg" alt="" width="64" height="64">
-    <h1>Chấm Mini-CEX tư vấn</h1>
+    <h1>Chấm Mini-CEX</h1>
     <p class="phu">Thực tập Ngoại khoa Y3<br>Tổ bộ môn Ngoại – BV. Nhân dân Gia Định</p>
     <form data-form="dang_nhap" autocomplete="on">
       <input class="an" type="text" name="username" autocomplete="username" value="minicex-y3" tabindex="-1" aria-hidden="true">
@@ -390,7 +396,7 @@ function veDangNhap() {
 function veDauChu() {
   const gv = docMacDinh().gv;
   return `<header class="dau">
-    <div class="dau-logo"><img src="icon.svg" alt=""><div class="dau-giua"><b>Mini-CEX tư vấn Y3</b>
+    <div class="dau-logo"><img src="icon.svg" alt=""><div class="dau-giua"><b>Mini-CEX Y3</b>
       <small>${gv ? 'GV: ' + esc(gv) : 'Tổ bộ môn Ngoại – BV. Nhân dân Gia Định'}</small></div></div>
     <div class="dau-phai"><button class="nut vien nho" data-act="cai_dat">Cài đặt</button>
       <button class="nut vien nho" data-act="dang_xuat">Khóa</button></div>
@@ -401,7 +407,7 @@ function dongBG(r) {
   return `<li class="dong-bg">
     <button class="dong-chinh" data-act="mo_bg" data-id="${r.id}"><b>${esc(r.sv.ho_ten || '(chưa nhập tên)')}</b>
       ${r.sv.mssv ? `<span class="phu"> · ${esc(r.sv.mssv)}</span>` : ''}
-      <small>${esc(th.ma)} ${esc(th.ten)}</small>
+      <small><span class="nhan-loai">${esc(LO(r).ten_ngan)}</span> ${esc(th.ma)} ${esc(th.ten)}</small>
       <small>${[tenLuot(r.luot), ngayVN(r.ngay), r.sv.dot, r.sv.to ? 'Tổ ' + r.sv.to : '', r.gv ? 'GV ' + r.gv : ''].filter(Boolean).map(esc).join(' · ')}</small></button>
     <div class="diem-bg">${xong ? `${d10(tong(r))}<span class="nhan-nd nd-${nd}">${DL.nhan_dinh[nd]}</span>` : '<span class="nhan-canh">Nháp</span>'}</div>
     <div class="dong-nut">${xong ? `<button class="nut vien nho" data-act="pdf_bg" data-id="${r.id}">Tải PDF</button>` : ''}
@@ -411,23 +417,23 @@ function dongBG(r) {
 }
 function locBG() {
   const q = chuanTim(UI.tim);
-  return BG.filter(r => (!UI.loc_nam || r.sv.nam_hoc === UI.loc_nam) && (!UI.loc_dot || r.sv.dot === UI.loc_dot) &&
+  return BG.filter(r => (!UI.loc_loai || TH[r.ma_th].loai === UI.loc_loai) && (!UI.loc_nam || r.sv.nam_hoc === UI.loc_nam) && (!UI.loc_dot || r.sv.dot === UI.loc_dot) &&
     (!q || chuanTim([r.sv.ho_ten, r.sv.mssv, r.ma_th, r.sv.lop, 'to ' + r.sv.to, r.gv, r.sv.dot].join(' ')).includes(q)));
 }
 function tongHopSV(ds) {
   const m = new Map();
   for (const r of ds.filter(x => x.trang_thai === 'xong')) {
-    const k = chuanMSSV(r.sv.mssv) || chuanTim(r.sv.ho_ten);
+    const k = (chuanMSSV(r.sv.mssv) || chuanTim(r.sv.ho_ten)) + '|' + TH[r.ma_th].loai;
     if (!m.has(k)) m.set(k, []);
     m.get(k).push(r);
   }
   return [...m.values()].map(g => {
     g.sort((a, b) => (a.ngay < b.ngay ? -1 : 1));
     const c = g[g.length - 1];
-    return {mssv: c.sv.mssv, ho_ten: c.sv.ho_ten, lop: c.sv.lop, to: c.sv.to, dot: c.sv.dot, nam_hoc: c.sv.nam_hoc,
+    return {loai: LO(c).ten, mssv: c.sv.mssv, ho_ten: c.sv.ho_ten, lop: c.sv.lop, to: c.sv.to, dot: c.sv.dot, nam_hoc: c.sv.nam_hoc,
             so: g.length, tb: g.reduce((a, r) => a + tong(r), 0) / g.length / 10, loi: g.filter(coLoi).length,
             ds: g.map(r => `${r.ma_th} ${d10(tong(r))}`).join('; ')};
-  }).sort((a, b) => chuanTim(a.ho_ten).localeCompare(chuanTim(b.ho_ten)));
+  }).sort((a, b) => chuanTim(a.ho_ten).localeCompare(chuanTim(b.ho_ten)) || a.loai.localeCompare(b.loai));
 }
 function veChu() {
   const nhap = BG.filter(r => r.ma_th && r.trang_thai !== 'xong').sort((a, b) => (a.sua_luc < b.sua_luc ? 1 : -1));
@@ -451,6 +457,7 @@ function veChu() {
         <button role="tab" aria-selected="${UI.tab_chu === 'sv'}" data-act="tab_chu" data-v="sv">Theo sinh viên</button>
       </div>
       <div class="loc-hang">
+        <label class="truong"><span>Loại</span><select data-loc="loc_loai"><option value="">Tất cả</option>${DL.loai.map(l => `<option value="${l.ma}" ${UI.loc_loai === l.ma ? 'selected' : ''}>${esc(l.ten)}</option>`).join('')}</select></label>
         <label class="truong"><span>Tìm</span><input type="search" data-tim="1" value="${esc(UI.tim)}" placeholder="Tên, MSSV, mã tình huống, tổ…"></label>
         ${namHoc.length > 1 ? `<label class="truong"><span>Năm học</span><select data-loc="loc_nam">${opt(namHoc, UI.loc_nam, 'Tất cả')}</select></label>` : ''}
         ${dot.length > 1 ? `<label class="truong"><span>Đợt</span><select data-loc="loc_dot">${opt(dot, UI.loc_dot, 'Tất cả')}</select></label>` : ''}
@@ -471,12 +478,12 @@ function veDsLuot(xong) {
 }
 function veDsSV(sv) {
   if (!sv.length) return '<p class="trong">Chưa có lượt hoàn tất.</p>';
-  return `<div class="bang-cuon"><table class="bang"><thead><tr><th>Sinh viên</th><th>Lớp, tổ</th><th>Số lượt</th>
+  return `<div class="bang-cuon"><table class="bang"><thead><tr><th>Sinh viên</th><th>Loại</th><th>Lớp, tổ</th><th>Số lượt</th>
     <th>Điểm TB (/10)</th><th>Lượt có lỗi NT</th><th>Các lượt</th></tr></thead><tbody>
-    ${sv.map(s => `<tr><td><b>${esc(s.ho_ten)}</b><br><small>${esc(s.mssv)}</small></td><td>${esc([s.lop, s.to ? 'Tổ ' + s.to : ''].filter(Boolean).join(', '))}</td>
+    ${sv.map(s => `<tr><td><b>${esc(s.ho_ten)}</b><br><small>${esc(s.mssv)}</small></td><td>${esc(s.loai)}</td><td>${esc([s.lop, s.to ? 'Tổ ' + s.to : ''].filter(Boolean).join(', '))}</td>
       <td class="so">${s.so}</td><td class="so"><b>${s.tb.toFixed(2).replace('.', ',')}</b></td><td class="so">${s.loi || ''}</td>
       <td><small>${esc(s.ds)}</small></td></tr>`).join('')}</tbody></table></div>
-    <p class="nhat">Điểm Mini-CEX tư vấn của đợt = trung bình các lượt được chấm (hướng dẫn mục 3.4). Lượt có lỗi nghiêm trọng vẫn được tính; sinh viên làm thêm một lượt cùng nhóm chủ đề.</p>`;
+    <p class="nhat">Điểm Mini-CEX của đợt, theo từng loại = trung bình các lượt được chấm (hướng dẫn mục 3.4). Lượt có lỗi nghiêm trọng vẫn được tính; sinh viên làm thêm một lượt cùng nhóm chủ đề.</p>`;
 }
 
 // ---------- màn chấm
@@ -508,21 +515,18 @@ function veThanhDuoi() {
       ${UI.buoc < 5 ? `<button class="nut chinh" data-act="tien" ${!R.ma_th ? 'disabled' : ''}>Tiếp ›</button>` : ''}</div>
   </footer>`;
 }
+const veDS = nd => (Array.isArray(nd) ? `<ul>${nd.map(x => `<li>${md(x)}</li>`).join('')}</ul>` : md(nd));
+function veDapAn(th) {
+  return `<dl class="kb">${th.dap_an.map(m => `<dt>${esc(m.n)}</dt><dd>${veDS(m.nd)}</dd>`).join('')}</dl>`;
+}
 function veThamKhao(th, tab, act) {
-  const tabs = [['sv', 'Phiếu sinh viên'], ['vai', 'Kịch bản'], ['day', 'Điểm dạy']];
+  const tabs = [['sv', 'Phiếu sinh viên'], ['vai', 'Kịch bản'], ['day', LOAI[th.loai].tab_day]];
   let nd;
   if (tab === 'vai') {
-    const v = th.vai, ds = a => `<ul>${a.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
-    nd = `<p class="bao-mat">Không để sinh viên được chấm xem kịch bản.</p><dl class="kb">
-      <dt>Người đóng vai</dt><dd>${esc(th.dong_vai)} · độ khó ${esc(th.do_kho.toLowerCase())}</dd>
-      <dt>Bạn là</dt><dd>${esc(v.nhan_vat)}</dd><dt>Hoàn cảnh</dt><dd>${esc(v.hoan_canh)}</dd>
-      <dt>Tâm trạng, cách nói</dt><dd>${esc(v.tam_trang)}</dd><dt>Câu mở đầu</dt><dd class="loi-thoai">${esc(v.mo_dau)}</dd>
-      <dt>Chỉ nói khi được hỏi</dt><dd>${ds(v.chi_noi)}</dd><dt>Câu hỏi phải hỏi</dt><dd>${ds(v.cau_hoi)}</dd>
-      <dt>Câu hỏi thử thách (khoảng phút 5–6)</dt><dd class="loi-thoai">${esc(v.thu_thach)}</dd>
-      <dt>Phản ứng theo cách sinh viên giao tiếp</dt><dd>${ds(v.phan_ung)}</dd>
-      <dt>Kết thúc</dt><dd>Khi sinh viên tóm tắt, hỏi còn thắc mắc gì: cảm ơn và kết thúc. Sau lượt, nói 1–2 câu cảm nhận; không cho điểm, không tiết lộ kịch bản.</dd></dl>`;
+    nd = `<p class="bao-mat">Không để sinh viên được chấm xem kịch bản.</p><dl class="kb">${th.kich_ban.map(m =>
+      `<dt>${esc(m.n)}</dt><dd${m.t ? ' class="loi-thoai"' : ''}>${veDS(m.nd)}</dd>`).join('')}</dl>`;
   } else if (tab === 'day') {
-    nd = `<h4>Điểm dạy</h4><ul>${th.diem_day.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+    nd = `${th.dap_an.length ? '<h4>Trình bày mong đợi</h4>' + veDapAn(th) : ''}<h4>Điểm dạy</h4>${veDS(th.diem_day)}
       <h4>Tài liệu</h4><ol>${th.tai_lieu.map(x => `<li><small>${esc(x)}</small></li>`).join('')}</ol>
       <p class="nhat">${esc(th.lien_he)} · ${esc(th.clo)}</p>`;
   } else nd = veNhiemVu(th);
@@ -531,18 +535,20 @@ function veThamKhao(th, tab, act) {
 }
 function veNhiemVu(th) {
   return `<p>${md('**Bối cảnh.** ' + th.sv.boi_canh)}</p>${(th.sv.thong_tin || []).map(x => `<p>${md(x)}</p>`).join('')}
-    <p>${md('**Nhiệm vụ.** ' + th.sv.nhiem_vu)} Thời gian: đọc phiếu 2 phút; tư vấn 8–10 phút.</p>
-    <p class="nhat"><em>Anh/chị là sinh viên Y3. Câu hỏi vượt vai trò sinh viên thì nói rõ sẽ mời bác sĩ trả lời.</em></p>`;
+    <p>${md('**Nhiệm vụ.** ' + th.sv.nhiem_vu)} ${esc(th.sv.thoi_gian)}</p>
+    <p class="nhat"><em>${esc(th.sv.ghi_chu)}</em></p>`;
 }
 
 // Bước 1: tình huống
 function veB1() {
-  const ds = DL.tinh_huong.filter(t => !UI.loc_nhom || t.nhom === UI.loc_nhom);
+  const L = LOAI[UI.loai_b1], dem = ma => DL.tinh_huong.filter(t => t.loai === ma).length;
+  const ds = DL.tinh_huong.filter(t => t.loai === L.ma && (!UI.loc_nhom || t.nhom === UI.loc_nhom));
   const daLam = new Set(lichSuSV(R.sv.mssv, R).map(x => x.ma_th));
   const xem = UI.xem ? TH[UI.xem] : R.ma_th ? TH[R.ma_th] : null;
   const dk = t => ['Thấp', 'Trung bình', 'Cao'].indexOf(t.do_kho);
-  return `<div class="tieu-de-buoc"><h2>Chọn tình huống</h2><p class="phu">${DL.tinh_huong.length} tình huống tư vấn trên người đóng vai. Chạm để xem phiếu sinh viên, kịch bản, điểm dạy.</p></div>
-    <div class="chips">${['', ...DL.nhom].map(n => `<button class="chip" data-act="loc_nhom" data-v="${esc(n)}" aria-pressed="${UI.loc_nhom === n}">${esc(n || 'Tất cả')}</button>`).join('')}</div>
+  return `<div class="tieu-de-buoc"><h2>Chọn tình huống</h2><p class="phu">Chọn loại Mini-CEX, rồi chạm vào tình huống để xem phiếu sinh viên, kịch bản, ${esc(L.tab_day.toLowerCase())}.</p></div>
+    <div class="phan-doan" role="tablist">${DL.loai.map(l => `<button role="tab" data-act="loai_b1" data-v="${l.ma}" aria-pressed="${l.ma === L.ma}">${esc(l.ten)} (${dem(l.ma)})</button>`).join('')}</div>
+    <div class="chips">${['', ...L.nhom].map(n => `<button class="chip" data-act="loc_nhom" data-v="${esc(n)}" aria-pressed="${UI.loc_nhom === n}">${esc(n || 'Tất cả')}</button>`).join('')}</div>
     <div class="luoi-th">${ds.map(t => `<button class="the-th ${R.ma_th === t.ma ? 'chon' : ''} ${xem?.ma === t.ma ? 'dang-xem' : ''}" data-act="xem_b1" data-ma="${t.ma}">
       <span class="th-hang"><span class="th-ma">${t.ma}</span><span class="do-kho dk-${dk(t)}">${esc(t.do_kho)}</span>
         ${daLam.has(t.ma) ? '<span class="nhan-canh">SV đã làm</span>' : ''}${R.ma_th === t.ma ? '<span class="nhan-chon">Đã chọn</span>' : ''}</span>
@@ -577,7 +583,7 @@ function veB2() {
       ${o('sv.nam_hoc', 'Năm học', R.sv.nam_hoc, {list: 'ds-nam', ph: namHocMacDinh()})}
       ${o('sv.khoa', 'Khoa thực tập', R.sv.khoa, {list: 'ds-khoa'})}
       ${o('ngay', 'Ngày chấm', R.ngay, {type: 'date'})}</div></section>
-    <section class="the"><h3>Lượt Mini-CEX tư vấn <i style="color:var(--m0);font-style:normal">*</i></h3>
+    <section class="the"><h3>Lượt Mini-CEX ${esc(LO(R).ten_ngan.toLowerCase())} <i style="color:var(--m0);font-style:normal">*</i></h3>
       <div class="phan-doan" style="margin-top:10px">${LUOT.map(l => `<button data-act="luot" data-v="${l}" aria-pressed="${R.luot === l}">${l === 'bs' ? 'Bổ sung' : 'Lượt ' + l}</button>`).join('')}</div>
       <p class="goi-y" id="goi-y-luot">${goiYLuot()}</p></section>
     <section class="the"><h3>Giảng viên và người đóng vai</h3><div class="luoi-form" style="margin-top:10px">
@@ -605,35 +611,34 @@ function veLichSuSV() {
   return h;
 }
 function goiYLuot() {
-  const ls = lichSuSV(R.sv.mssv, R).filter(x => x.trang_thai === 'xong');
+  const ls = lichSuSV(R.sv.mssv, R).filter(x => x.trang_thai === 'xong' && LO(x) === LO(R));
   if (!R.sv.mssv.trim()) return 'Nhập MSSV để app gợi ý lượt.';
-  if (!ls.length) return 'Chưa có lượt nào của sinh viên này trên máy: thường là lượt 1.';
+  if (!ls.length) return `Chưa có lượt ${LO(R).ten_ngan.toLowerCase()} nào của sinh viên này trên máy: thường là lượt 1.`;
   const can = ls.filter(x => coLoi(x) || nhanDinh(x) === 0);
-  return `Đã hoàn tất ${ls.length} lượt: gợi ý lượt ${Math.min(ls.length + 1, 4)}.` +
+  return `Đã hoàn tất ${ls.length} lượt ${LO(R).ten_ngan.toLowerCase()}: gợi ý lượt ${Math.min(ls.length + 1, 4)}.` +
     (can.length ? ` Có ${can.length} lượt chưa đạt hoặc có lỗi nghiêm trọng: có thể là lượt bổ sung.` : '');
 }
 
 // Bước 3: quan sát
 function phaDH(ms) {
-  const q = DL.quy_tac, p = ms / 60000;
+  const q = LO(R).quy_tac, p = ms / 60000;
   return p >= q.phut_dung ? 3 : p >= q.phut_muc_tieu ? 2 : p >= q.phut_bao ? 1 : 0;
 }
 function veB3() {
-  const th = TH[R.ma_th], t = tongTC(R), c = soTCChua(R), n = R.then_chot.length, ms = msDongHo(R), q = DL.quy_tac;
+  const th = TH[R.ma_th], L = LO(R), q = L.quy_tac, t = tongTC(R), c = soTCChua(R), n = R.then_chot.length, ms = msDongHo(R);
   return `<div class="tieu-de-buoc"><h2>Quan sát</h2><p class="phu">Ngồi ngoài tầm nhìn chính, không can thiệp. Đánh dấu điểm then chốt và lỗi nghiêm trọng khi nghe được.</p></div>
     <section class="the dong-ho-the">
       <div class="dh-lon pha-${phaDH(ms)}" id="dh-lon" role="timer">${dinhDangGio(ms)}</div>
       <p class="phu" id="dh-pha">${moTaPha(ms)}</p>
       <div class="hang-nut">${R.dong_ho.bat_dau ? '<button class="nut chinh" data-act="dh_dung">❚❚ Tạm dừng</button>'
-        : `<button class="nut chinh" data-act="dh_chay">▶ ${ms ? 'Tiếp tục' : 'Bắt đầu tư vấn'}</button>`}
+        : `<button class="nut chinh" data-act="dh_chay">▶ ${ms ? 'Tiếp tục' : 'Bắt đầu ' + L.dong_tu}</button>`}
         <button class="nut vien" data-act="dh_lai" ${ms ? '' : 'disabled'}>Đặt lại</button>
-        <button class="nut vien" data-act="doc_sv">Phiếu cho sinh viên đọc (2 phút)</button></div>
+        <button class="nut vien" data-act="doc_sv">Phiếu cho sinh viên đọc (${q.phut_doc} phút)</button></div>
       <p class="nhat">Mục tiêu ${q.phut_bao}–${q.phut_muc_tieu} phút · phút ${q.phut_bao} báo còn 2 phút · dừng ở phút ${q.phut_dung}. Màn hình được giữ sáng khi đồng hồ chạy.</p>
     </section>
-    <details class="the"><summary>Người đóng vai sẽ hỏi</summary><ul>
-      ${th.vai.cau_hoi.map(x => `<li>${esc(x)}</li>`).join('')}<li><b>Thử thách (phút 5–6):</b> ${esc(th.vai.thu_thach)}</li></ul></details>
-    <section class="the"><div class="the-dau"><h3>A. Điểm then chốt về nội dung</h3><span class="dem">${soTC(t)}/${n}</span></div>
-      <p class="goi-y">Đủ = 1, một phần = 0,5; chấp nhận cách nói tương đương, không cần đúng thứ tự. Tổng từ ${q.then_chot_tot}: lĩnh vực 3 mức Tốt; ${q.then_chot_dat} đến dưới ${q.then_chot_tot}: Đạt; dưới ${q.then_chot_dat}: Chưa đạt.</p>
+    <details class="the"><summary>Người đóng vai sẽ hỏi</summary>${veDS(th.nhac)}</details>
+    <section class="the"><div class="the-dau"><h3>A. ${esc(L.nhan_then_chot)}</h3><span class="dem">${soTC(t)}/${n}</span></div>
+      <p class="goi-y">Đủ = 1, một phần = 0,5; chấp nhận cách nói tương đương, không cần đúng thứ tự. Tổng từ ${q.then_chot_tot}: lĩnh vực ${q.lv_then_chot + 1} mức Tốt; ${q.then_chot_dat} đến dưới ${q.then_chot_tot}: Đạt; dưới ${q.then_chot_dat}: Chưa đạt.</p>
       <ol class="ds-tc">${th.then_chot.map((x, k) => `<li class="tc ${R.then_chot[k] == null ? '' : 'da-' + R.then_chot[k] * 2}"><p>${esc(x)}</p>
         <div class="phan-doan ba nho">${KQ_TC.map(([v, ten]) => `<button class="tc-${v * 2}" data-act="tc" data-k="${k}" data-v="${v}" aria-pressed="${R.then_chot[k] === v}">${ten}</button>`).join('')}</div></li>`).join('')}</ol>
       ${c && c < n ? `<div class="hang-nut"><button class="nut vien nho" data-act="tc_con_lai">Các mục chưa đánh dấu: Không (${c})</button></div>` : ''}
@@ -641,7 +646,7 @@ function veB3() {
     <section class="the"><h3>C. Lỗi nghiêm trọng</h3>
       <p class="goi-y">Có lỗi: lĩnh vực chứa lỗi chỉ chấm mức Chưa đạt, nhận định chung Chưa đạt, sinh viên làm thêm một lượt cùng nhóm chủ đề.</p>
       ${th.loi.map((x, k) => `<button class="loi-hang" data-act="loi" data-k="${k}" aria-pressed="${!!R.loi[k]}"><span class="hop"></span>
-        <span>${esc(x)}<small>Thuộc lĩnh vực ${th.loi_lv[k]}: ${esc(DL.linh_vuc[th.loi_lv[k] - 1].ten_ngan)}</small></span></button>`).join('')}
+        <span>${esc(x)}<small>Thuộc lĩnh vực ${th.loi_lv[k]}: ${esc(L.linh_vuc[th.loi_lv[k] - 1].ten_ngan)}</small></span></button>`).join('')}
     </section>
     <section class="the"><h3>Ghi chú nhanh</h3>
       <div class="chips"><button class="chip" data-act="chen" data-v="moc">+ Mốc thời gian</button>
@@ -652,19 +657,22 @@ function veB3() {
     </section>`;
 }
 function moTaPha(ms) {
-  const q = DL.quy_tac, p = phaDH(ms);
-  if (!ms) return 'Bấm “Bắt đầu tư vấn” khi sinh viên vào phòng.';
+  const L = LO(R), q = L.quy_tac, p = phaDH(ms);
+  if (!ms) return `Bấm “Bắt đầu ${L.dong_tu}” khi sinh viên vào phòng.`;
   if (!R.dong_ho.bat_dau) return 'Đồng hồ đang dừng.';
-  return ['Đang trong thời gian tư vấn.', 'Còn 2 phút: báo sinh viên.', `Đã đủ ${q.phut_muc_tieu} phút.`, `Đã đến phút ${q.phut_dung}: dừng lượt.`][p];
+  return [`Đang trong thời gian ${L.dong_tu}.`, 'Còn 2 phút: báo sinh viên.', `Đã đủ ${q.phut_muc_tieu} phút.`, `Đã đến phút ${q.phut_dung}: dừng lượt.`][p];
 }
 
 // Bước 4: chấm điểm
 function veLV(i) {
-  const lv = DL.linh_vuc[i], d = R.diem[i], cp = mucChoPhep(R, i), mDiem = mucTheoDiem(i, d);
+  const q = LO(R).quy_tac, lv = LO(R).linh_vuc[i], d = R.diem[i], cp = mucChoPhep(R, i), mDiem = mucTheoDiem(R, i, d);
   const mHien = UI.mo_muc[i] ?? mDiem ?? (cp.length === 1 ? cp[0] : null);
-  const goiY = i === 2 ? goiYNoiDung(R) : null, loi = loiCuaLV(R, i);
+  const goiY = i === q.lv_then_chot ? goiYNoiDung(R) : null, loi = loiCuaLV(R, i);
   let ghi = '';
-  if (i === 2) {
+  if (i === q.lv_trinh_bay) {
+    ghi += `<details class="tham-chieu"><summary>Trình bày mong đợi (giảng viên đối chiếu)</summary>${veDapAn(TH[R.ma_th])}</details>`;
+  }
+  if (i === q.lv_then_chot) {
     const c = soTCChua(R);
     ghi += `<p class="goi-y">Điểm then chốt ${soTC(tongTC(R))}/${R.then_chot.length}: mức <b>${DL.nhan_dinh[mucNoiDung(R)]}</b>${c ? ` <span style="color:var(--warn)">(còn ${c} mục chưa đánh dấu ở bước Quan sát)</span>` : ''}${goiY != null ? `; gợi ý ${goiY} điểm (ô viền đứt).` : '.'}</p>`;
   }
@@ -685,15 +693,15 @@ function veLV(i) {
     }).join('')}</div></section>`;
 }
 function nhacDongHo() {
-  return R.dong_ho.bat_dau ? `<p class="canh-bao">Đồng hồ quan sát vẫn đang chạy. <button class="lien-ket" data-act="dh_dung">Dừng đồng hồ</button> khi sinh viên kết thúc tư vấn.</p>` : '';
+  return R.dong_ho.bat_dau ? `<p class="canh-bao">Đồng hồ quan sát vẫn đang chạy. <button class="lien-ket" data-act="dh_dung">Dừng đồng hồ</button> khi sinh viên kết thúc ${LO(R).dong_tu}.</p>` : '';
 }
 function veB4() {
-  const t = tong(R), du = duDiem(R), g = du ? nhanDinhGoiY(R) : null, nd = nhanDinh(R), loi = coLoi(R), q = DL.quy_tac;
+  const L = LO(R), q = L.quy_tac, t = tong(R), du = duDiem(R), g = du ? nhanDinhGoiY(R) : null, nd = nhanDinh(R), loi = coLoi(R);
   const daCham = R.diem.filter((_, i) => diemHopLe(R, i)).length;
   return `<div class="tieu-de-buoc"><h2>Chấm điểm</h2><p class="phu">Chọn mức theo hành vi quan sát được, rồi chọn điểm trong khoảng của mức. Ghi ví dụ cụ thể vào phần phản hồi.</p></div>
-    ${nhacDongHo()}
-    ${DL.linh_vuc.map((_, i) => veLV(i)).join('')}
-    <section class="the tong-the"><div><small class="phu">Tổng điểm (${daCham}/${DL.linh_vuc.length} lĩnh vực)</small><div class="tong-so">${t}/100</div></div>
+    ${nhacDongHo()}${L.ghi_chu_cham ? `<p class="canh-bao xanh">${esc(L.ghi_chu_cham)}</p>` : ''}
+    ${L.linh_vuc.map((_, i) => veLV(i)).join('')}
+    <section class="the tong-the"><div><small class="phu">Tổng điểm (${daCham}/${L.linh_vuc.length} lĩnh vực)</small><div class="tong-so">${t}/100</div></div>
       <div style="text-align:right"><small class="phu">Điểm lượt (thang 10)</small><div class="tong-so">${d10(t)}</div></div></section>
     <section class="the" id="nhan-dinh"><h3>D. Nhận định chung</h3>
       ${du ? `<p class="goi-y">${loi ? 'Có lỗi nghiêm trọng: nhận định chung là Chưa đạt.'
@@ -704,9 +712,9 @@ function veB4() {
         <textarea data-f="ly_do_nhan_dinh" rows="2">${esc(R.ly_do_nhan_dinh)}</textarea></label>` : ''}`
       : '<p class="goi-y">Chấm đủ 7 lĩnh vực để có nhận định chung.</p>'}
     </section>
-    <section class="the"><h3>Mức giám sát khi tư vấn người bệnh thật</h3>
-      <p class="goi-y">Sinh viên được tư vấn nội dung này cho người bệnh thật ở mức nào; ghi vào portfolio phần “Tư vấn có giám sát”.</p>
-      ${DL.muc_giam_sat.map((m, k) => `<button class="lua-chon" data-act="giam_sat" data-v="${k}" aria-pressed="${R.giam_sat === k}">
+    <section class="the"><h3>Mức giám sát khi ${esc(L.dong_tu)} người bệnh thật</h3>
+      <p class="goi-y">Sinh viên được ${esc(L.dong_tu)} người bệnh thật ở mức nào với nội dung này; ghi vào portfolio.</p>
+      ${L.muc_giam_sat.map((m, k) => `<button class="lua-chon" data-act="giam_sat" data-v="${k}" aria-pressed="${R.giam_sat === k}">
         <span class="tron"></span><span>${esc(m.ten)}${nd === k ? '<span class="nhan-goi-y">thường đi cùng nhận định hiện tại</span>' : ''}</span></button>`).join('')}
     </section>`;
 }
@@ -719,10 +727,10 @@ function goiYPhanHoi(k) {
   if (k === 'lam_tot') a = dong('Làm tốt:').map(x => [x, x]);
   if (k === 'cai_thien') {
     a = dong('Cần cải thiện:').map(x => [x, x]);
-    const thap = R.diem.map((d, i) => [i, d == null ? 1 : d / DL.linh_vuc[i].toi_da]).filter(([, r]) => r < 0.8)
+    const thap = R.diem.map((d, i) => [i, d == null ? 1 : d / LO(R).linh_vuc[i].toi_da]).filter(([, r]) => r < 0.8)
       .sort((x, y) => x[1] - y[1]).slice(0, 2);
     for (const [i] of thap) {
-      const lv = DL.linh_vuc[i];
+      const lv = LO(R).linh_vuc[i];
       a.push([`Lĩnh vực ${i + 1}: ${lv.ten_ngan.toLowerCase()}`, `${lv.ten_ngan}: ${lv.muc[2].mo_ta}`]);
     }
   }
@@ -735,7 +743,7 @@ function veTomTat() {
     <div class="o-kq"><small>Nhận định chung</small><b class="${nd != null ? 'nd-' + nd : ''}" style="background:none">${nd != null ? DL.nhan_dinh[nd] : '—'}</b></div>
     <div class="o-kq"><small>Lỗi nghiêm trọng</small><b>${coLoi(R) ? 'Có' : 'Không'}</b></div>
     <div class="o-kq rong2"><small>Điểm then chốt</small>${soTC(tongTC(R))}/${R.then_chot.length}</div>
-    <div class="o-kq rong2"><small>Mức giám sát đề nghị</small>${gs != null ? esc(DL.muc_giam_sat[gs].ngan) : '—'}</div>`;
+    <div class="o-kq rong2"><small>Mức giám sát đề nghị</small>${gs != null ? esc(LO(R).muc_giam_sat[gs].ngan) : '—'}</div>`;
 }
 function veKhoiHoanTat() {
   const t = thieu(R);
@@ -830,15 +838,15 @@ function moCaiDat() {
     <div class="hang-nut"><button class="nut vien" data-act="quen_khoa">Bỏ ghi nhớ mật khẩu</button>
       <button class="nut vien nguy" data-act="xoa_tat_ca">Xóa toàn bộ bản ghi</button></div>
     <h4 style="margin-top:20px">Giới thiệu</h4>
-    <p class="nhat">${esc(DL.ten_bo)}. Dữ liệu phiên bản ${esc(GOI.phien_ban)} (dấu ${esc(GOI.dau)}). Thang 7 lĩnh vực, 100 điểm; ${DL.tinh_huong.length} tình huống. Biên soạn: ${esc(DL.nguoi_bien_soan)}, với sự hỗ trợ của Claude (Anthropic); cần Tổ bộ môn thẩm định trước khi dùng chính thức.</p>`);
+    <p class="nhat">${esc(DL.ten_bo)}. Dữ liệu phiên bản ${esc(GOI.phien_ban)} (dấu ${esc(GOI.dau)}). ${DL.loai.map(l => `${esc(l.ten)}: ${DL.tinh_huong.filter(t => t.loai === l.ma).length} tình huống, thang ${l.linh_vuc.length} lĩnh vực, 100 điểm`).join('; ')}. Biên soạn: ${esc(DL.nguoi_bien_soan)}, với sự hỗ trợ của Claude (Anthropic); cần Tổ bộ môn thẩm định trước khi dùng chính thức.</p>`);
 }
 function moDocSV() {
   const th = TH[R.ma_th];
   UI.doc_bat_dau = Date.now();
-  moLopPhu(`<div class="lp-dau"><b>${esc(th.ma)}. Phiếu nhiệm vụ</b><span class="doc-dh" id="doc-dh">2:00</span></div>
+  moLopPhu(`<div class="lp-dau"><b>${esc(th.ma)}. Phiếu nhiệm vụ</b><span class="doc-dh" id="doc-dh">${LO(R).quy_tac.phut_doc}:00</span></div>
     <div class="doc-nd">${veNhiemVu(th)}</div>
     <div class="hang-nut" style="justify-content:center"><button class="nut vien lon" data-act="dong_lp">Đóng</button>
-      <button class="nut chinh lon" data-act="doc_xong">Bắt đầu tư vấn ▶</button></div>`, 'toan-man doc-sv');
+      <button class="nut chinh lon" data-act="doc_xong">Bắt đầu ${esc(LO(R).dong_tu)} ▶</button></div>`, 'toan-man doc-sv');
 }
 
 // ============================================================ đồng hồ
@@ -878,7 +886,7 @@ setInterval(() => {
   }
   const doc = $('#doc-dh');
   if (doc && UI.doc_bat_dau) {
-    const con = Math.max(0, 120000 - (Date.now() - UI.doc_bat_dau));
+    const con = Math.max(0, LO(R).quy_tac.phut_doc * 60000 - (Date.now() - UI.doc_bat_dau));
     const giay = Math.ceil(con / 1000);
     doc.textContent = `${Math.floor(giay / 60)}:${String(giay % 60).padStart(2, '0')}`;
     if (!con) doc.style.color = 'var(--m0)';
@@ -896,27 +904,29 @@ function csv(hang) {
 function xuatCSV() {
   const ds = locBG().filter(r => r.trang_thai === 'xong').sort((a, b) => (a.ngay < b.ngay ? -1 : 1));
   if (!ds.length) return bao('Chưa có lượt hoàn tất để xuất.');
-  const dau = ['Mã phiếu', 'Ngày', 'Năm học', 'Đợt', 'Lớp', 'Tổ', 'Khoa', 'MSSV', 'Họ tên', 'Lượt', 'Mã TH', 'Tình huống',
-    'Nhóm chủ đề', 'Độ khó', 'Giảng viên', 'Người đóng vai', 'Họ tên người đóng vai', 'Điểm then chốt (/7)',
-    ...DL.linh_vuc.map((l, i) => `LV${i + 1} ${l.ten_ngan} (/${l.toi_da})`), 'Tổng (/100)', 'Điểm lượt (/10)',
+  const soLV = Math.max(...DL.loai.map(l => l.linh_vuc.length));
+  const dau = ['Mã phiếu', 'Loại Mini-CEX', 'Ngày', 'Năm học', 'Đợt', 'Lớp', 'Tổ', 'Khoa', 'MSSV', 'Họ tên', 'Lượt', 'Mã TH',
+    'Tình huống', 'Nhóm chủ đề', 'Độ khó', 'Giảng viên', 'Người đóng vai', 'Họ tên người đóng vai', 'Điểm then chốt',
+    'Số mục then chốt', ...Array.from({length: soLV}, (_, i) => `LV${i + 1}`), 'Tổng (/100)', 'Điểm lượt (/10)',
     'Lỗi nghiêm trọng', 'Nhận định chung', 'Lý do nhận định', 'Mức giám sát', 'Phút quan sát', 'Phút phản hồi',
     ...PH.map(p => p[1])];
   const hang = ds.map(r => {
     const th = TH[r.ma_th];
-    return [r.id, ngayVN(r.ngay), r.sv.nam_hoc, r.sv.dot, r.sv.lop, r.sv.to, r.sv.khoa, r.sv.mssv, r.sv.ho_ten, tenLuot(r.luot),
-      r.ma_th, th.ten, th.nhom, th.do_kho, r.gv, r.dong_vai.loai, r.dong_vai.ho_ten, so1(tongTC(r)), ...r.diem, tong(r),
+    return [r.id, LO(r).ten, ngayVN(r.ngay), r.sv.nam_hoc, r.sv.dot, r.sv.lop, r.sv.to, r.sv.khoa, r.sv.mssv, r.sv.ho_ten, tenLuot(r.luot),
+      r.ma_th, th.ten, th.nhom, th.do_kho, r.gv, r.dong_vai.loai, r.dong_vai.ho_ten, so1(tongTC(r)), r.then_chot.length, ...r.diem, tong(r),
       d10(tong(r)), r.loi.map((x, k) => (x ? th.loi[k] : '')).filter(Boolean).join(' | '), DL.nhan_dinh[nhanDinh(r)] ?? '',
-      r.ly_do_nhan_dinh, r.giam_sat != null ? DL.muc_giam_sat[r.giam_sat].ngan : '', phutQS(r), r.phut_phan_hoi,
+      r.ly_do_nhan_dinh, r.giam_sat != null ? LO(r).muc_giam_sat[r.giam_sat].ngan : '', phutQS(r), r.phut_phan_hoi,
       ...PH.map(([k]) => r.phan_hoi[k])];
   });
   const sv = tongHopSV(ds);
-  const bangSV = [[], ['TỔNG HỢP THEO SINH VIÊN'], ['MSSV', 'Họ tên', 'Lớp', 'Tổ', 'Đợt', 'Năm học', 'Số lượt', 'Điểm TB (/10)', 'Lượt có lỗi nghiêm trọng', 'Các lượt']]
-    .concat(sv.map(s => [s.mssv, s.ho_ten, s.lop, s.to, s.dot, s.nam_hoc, s.so, s.tb.toFixed(2).replace('.', ','), s.loi, s.ds]));
-  taiTep(new Blob([csv([dau, ...hang, ...bangSV])], {type: 'text/csv;charset=utf-8'}), `MiniCEX-TuVan_bang-diem_${homNay()}.csv`);
+  const bangSV = [[], ['TỔNG HỢP THEO SINH VIÊN VÀ LOẠI MINI-CEX'], ['MSSV', 'Họ tên', 'Loại Mini-CEX', 'Lớp', 'Tổ', 'Đợt', 'Năm học', 'Số lượt', 'Điểm TB (/10)', 'Lượt có lỗi nghiêm trọng', 'Các lượt']]
+    .concat(sv.map(s => [s.mssv, s.ho_ten, s.loai, s.lop, s.to, s.dot, s.nam_hoc, s.so, s.tb.toFixed(2).replace('.', ','), s.loi, s.ds]));
+  const chuThich = [[], ['CHÚ THÍCH CÁC LĨNH VỰC']].concat(DL.loai.map(l => [l.ten, ...l.linh_vuc.map((x, i) => `LV${i + 1}: ${x.ten_ngan} (/${x.toi_da})`)]));
+  taiTep(new Blob([csv([dau, ...hang, ...bangSV, ...chuThich])], {type: 'text/csv;charset=utf-8'}), `MiniCEX-Y3_bang-diem_${homNay()}.csv`);
 }
 function saoLuu() {
   const goi = {loai: 'mcx-y3-sao-luu', phien_ban: 1, xuat_luc: new Date().toISOString(), ban_ghi: BG.filter(r => r.ma_th)};
-  taiTep(new Blob([JSON.stringify(goi)], {type: 'application/json'}), `MiniCEX-TuVan_sao-luu_${homNay()}.json`);
+  taiTep(new Blob([JSON.stringify(goi)], {type: 'application/json'}), `MiniCEX-Y3_sao-luu_${homNay()}.json`);
 }
 async function nhapTep(tep) {
   let goi;
@@ -994,6 +1004,7 @@ const HD = {
     $('#chi-tiet')?.scrollIntoView({behavior: 'smooth', block: 'start'});
   },
   tab_xem: el => { UI.tab_xem = el.dataset.v; ve(); },
+  loai_b1: el => { UI.loai_b1 = el.dataset.v; UI.loc_nhom = ''; UI.xem = null; ve(); },
   tab_ben: el => { UI.tab_ben = el.dataset.v; ve(); },
   chon_th: async el => {
     const ma = el.dataset.ma;
@@ -1045,10 +1056,10 @@ const HD = {
     ta.selectionStart = ta.selectionEnd = vt + chen.length;
   },
   muc: el => {
-    const i = +el.dataset.lv, m = +el.dataset.m, lv = DL.linh_vuc[i].muc[m];
+    const i = +el.dataset.lv, m = +el.dataset.m, lv = LO(R).linh_vuc[i].muc[m];
     UI.mo_muc[i] = m;
     if (lv.tu === lv.den) R.diem[i] = lv.tu;
-    else if (R.diem[i] != null && mucTheoDiem(i, R.diem[i]) !== m) R.diem[i] = null;
+    else if (R.diem[i] != null && mucTheoDiem(R, i, R.diem[i]) !== m) R.diem[i] = null;
     daSua();
     ve();
   },
@@ -1103,7 +1114,7 @@ const HD = {
     const th = TH[R.ma_th];
     try {
       await navigator.share({files: [UI.pdf.tep], title: UI.pdf.ten,
-                             text: `Phiếu Mini-CEX tư vấn ${th.ma} – ${R.sv.ho_ten} (${tenLuot(R.luot).toLowerCase()}, ${ngayVN(R.ngay)})`});
+                             text: `Phiếu Mini-CEX ${LO(R).ten_ngan.toLowerCase()} ${th.ma} – ${R.sv.ho_ten} (${tenLuot(R.luot).toLowerCase()}, ${ngayVN(R.ngay)})`});
     } catch (e) { if (e.name !== 'AbortError') bao('Không chia sẻ được; hãy tải PDF rồi gửi.', true); }
   },
   pdf_xem: () => {

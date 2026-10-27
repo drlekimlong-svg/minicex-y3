@@ -112,6 +112,11 @@ main { max-width: 1180px; margin: 0 auto; padding: 16px 16px 120px; }
 .goi-y { font-size: .9rem; color: var(--muted); margin: 4px 0 10px; }
 .canh-bao { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 8px 12px; font-size: .92rem; margin: 8px 0; }
 .canh-bao.do { background: var(--m0-soft); color: var(--m0); }
+.canh-bao.xanh { background: var(--accent-soft); color: var(--accent); }
+.nhan-loai { display: inline-block; font-size: .72rem; font-weight: 700; color: var(--accent); border: 1px solid var(--accent);
+  border-radius: 999px; padding: 0 7px; margin-right: 4px; vertical-align: 1px; }
+details.tham-chieu { background: var(--surface-2); border-radius: 10px; padding: 8px 12px; margin: 4px 0 10px; font-size: .92rem; }
+details.tham-chieu summary { cursor: pointer; font-weight: 700; color: var(--accent); }
 .loi { color: var(--m0); font-size: .92rem; min-height: 1.4em; }
 
 /* ---------- đăng nhập ---------- */

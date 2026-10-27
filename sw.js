@@ -1,5 +1,5 @@
 // Bộ nhớ đệm để mở được khi mạng yếu: trang và dữ liệu lấy mạng trước, thư viện PDF lấy bộ nhớ đệm trước.
-const BAN = 'mcx-y3-v1';
+const BAN = 'mcx-y3-v2';
 const VO = ['./', 'index.html', 'app.css', 'app.js', 'pdf.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'data.enc.json'];
 const THU_VIEN = ['vendor/pdfmake.min.js', 'vendor/vfs_fonts.js'];
 
